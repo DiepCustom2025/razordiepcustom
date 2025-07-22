@@ -1,0 +1,2 @@
+setx DEV_PASSWORD_HASH "120f6e5b4ea32f65bda68452fcfaaef06b0136e1d0e4a6f60bc3771fa0936dd6"
+yarn run server
