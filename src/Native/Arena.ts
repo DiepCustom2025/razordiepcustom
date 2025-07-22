@@ -19,7 +19,7 @@
 import GameServer from "../Game";
 import ShapeManager from "../Entity/Shape/Manager";
 import TankBody from "../Entity/Tank/TankBody";
-import ArenaCloser from "../Entity/Misc/ArenaCloser";
+// Removed direct import of ArenaCloser to fix circular dependency
 import ClientCamera from "./Camera";
 
 import { VectorAbstract } from "../Physics/Vector";
@@ -57,6 +57,9 @@ export default class ArenaEntity extends Entity implements TeamGroupEntity {
     public leader: TankBody | null = null;
     protected shapes = new ShapeManager(this);
     public ARENA_PADDING = 200;
+
+    // Lazy holder for ArenaCloser class
+    private static ArenaCloserClass: any = null;
 
     public constructor(game: GameServer) {
         super(game);
@@ -199,7 +202,7 @@ export default class ArenaEntity extends Entity implements TeamGroupEntity {
         tank.positionData.values.y = y;
     }
 
-    public close() {
+    public async close() {
         for (const client of this.game.clients) {
             client.notify("Arena closed: No players can join", 0xFF0000, -1);
         }
@@ -207,11 +210,16 @@ export default class ArenaEntity extends Entity implements TeamGroupEntity {
         this.state = ArenaState.CLOSING;
         this.arenaData.flags |= ArenaFlags.noJoining;
 
-        setTimeout(() => {
+        setTimeout(async () => {
+            if (!ArenaEntity.ArenaCloserClass) {
+                const module = await import("../Entity/Misc/ArenaCloser");
+                ArenaEntity.ArenaCloserClass = module.default;
+            }
+
             const acCount = Math.floor(Math.sqrt(this.width) / 10);
             const radius = this.width * Math.SQRT1_2 + 500;
             for (let i = 0; i < acCount; ++i) {
-                const ac = new ArenaCloser(this.game);
+                const ac = new ArenaEntity.ArenaCloserClass(this.game);
 
                 const angle = (i / acCount) * PI2;
                 ac.positionData.values.x = Math.cos(angle) * radius;
@@ -219,7 +227,7 @@ export default class ArenaEntity extends Entity implements TeamGroupEntity {
                 ac.positionData.values.angle = angle + Math.PI;
             }
 
-            saveToLog("Arena Closing", "Arena running at `" + this.game.gamemode + "` is now closing.", 0xFFE869);
+            saveToLog("Arena Closing", "Arena running at " + this.game.gamemode + " is now closing.", 0xFFE869);
         }, 5000);
     }
 
