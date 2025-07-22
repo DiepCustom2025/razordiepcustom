@@ -31,9 +31,7 @@ const TURN_CHANCE = 0.15;
 const BRANCH_CHANCE = 0.1;
 const TERMINATION_CHANCE = 0.15;
 
-const BaseArena = ArenaEntity;
-
-export default class MazeArena extends BaseArena {
+export default class MazeArena extends ArenaEntity {
   static exists = ArenaEntity.exists;
 
   private SEEDS: VectorAbstract[] = [];

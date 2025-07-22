@@ -6,6 +6,7 @@
         "strict": true,
         "removeComments": true,
         "skipLibCheck": true,
+        "allowSyntheticDefaultImports": true,
         "resolveJsonModule": true,
         "esModuleInterop": true
     },
