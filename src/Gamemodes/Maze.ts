@@ -19,9 +19,10 @@ import ArenaEntity from "../Native/Arena";
 import MazeWall from "../Entity/Misc/MazeWall";
 import { VectorAbstract } from "../Physics/Vector";
 
-console.log(ArenaEntity);
+// Temporary placeholder for GameServer type, to avoid missing module error
+type GameServer = any;
 
-// constss.
+// Constants
 const CELL_SIZE = 635;
 const GRID_SIZE = 20;
 const ARENA_SIZE = CELL_SIZE * GRID_SIZE;
@@ -30,27 +31,21 @@ const TURN_CHANCE = 0.15;
 const BRANCH_CHANCE = 0.1;
 const TERMINATION_CHANCE = 0.15;
 
-/**
- * Maze Gamemode Arena
- * 
- * Implementation details:
- * Maze map generator by damocles <github.com/SpanksMcYeet>
- *  - Added into codebase on December 3rd 2022
- */
-export default class MazeArena extends ArenaEntity {
-    /** Stores all the "seed"s */
-    private SEEDS: VectorAbstract[] = [];
-    /** Stores all the "wall"s, contains cell based coords */
-    private WALLS: (VectorAbstract & {width: number, height: number})[] = [];
-    /** Rolled out matrix of the grid */
-    private MAZE: Uint8Array = new Uint8Array(GRID_SIZE * GRID_SIZE);
+const BaseArena = ArenaEntity;
 
-    public constructor(a: any) {
-        super(a);
-        this.updateBounds(ARENA_SIZE, ARENA_SIZE);
-        this.allowBoss = true;
-        this._buildMaze();
-    }
+export default class MazeArena extends BaseArena {
+  static exists = ArenaEntity.exists;
+
+  private SEEDS: VectorAbstract[] = [];
+  private WALLS: (VectorAbstract & {width: number, height: number})[] = [];
+  private MAZE: Uint8Array = new Uint8Array(GRID_SIZE * GRID_SIZE);
+
+  public constructor(game: GameServer) {
+    super(game);
+    this.updateBounds(ARENA_SIZE, ARENA_SIZE);
+    this.allowBoss = true;
+    this._buildMaze();
+  }
     /** Creates a maze wall from cell coords */
     private _buildWallFromGridCoord(gridX: number, gridY: number, gridW: number, gridH: number) {
         const scaledW = gridW * CELL_SIZE;
