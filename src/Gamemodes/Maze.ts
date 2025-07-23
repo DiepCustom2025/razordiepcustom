@@ -15,71 +15,61 @@
     You should have received a copy of the GNU Affero General Public License
     along with this program. If not, see <https://www.gnu.org/licenses/>
 */
-
-import GameServer from "../Game";
-import ShapeManager from "../Entity/Shape/Manager";
+import ArenaEntity, { ArenaState } from "../Native/Arena";
+import MazeWall from "../Entity/Misc/MazeWall";
 import TankBody from "../Entity/Tank/TankBody";
-// Removed direct import of ArenaCloser to fix circular dependency
-import ClientCamera from "./Camera";
-
 import { VectorAbstract } from "../Physics/Vector";
-import { ArenaGroup, TeamGroup } from "./FieldGroups";
-import { Entity } from "./Entity";
-import { Color, ArenaFlags, ValidScoreboardIndex } from "../Const/Enums";
-import { PI2, saveToLog } from "../util";
-import { TeamEntity, TeamGroupEntity } from "../Entity/Misc/TeamEntity";
-import Client from "../Client";
-import AbstractBoss from "../Entity/Boss/AbstractBoss";
-import Guardian from "../Entity/Boss/Guardian";
-import Summoner from "../Entity/Boss/Summoner";
-import FallenOverlord from "../Entity/Boss/FallenOverlord";
-import FallenBooster from "../Entity/Boss/FallenBooster";
-import Defender from "../Entity/Boss/Defender";
-import { bossSpawningInterval, scoreboardUpdateInterval } from "../config";
 
-// Removed this line to fix circular import
-// import { maze } from "../Gamemodes/Maze";
+// constss.
+const CELL_SIZE = 635;
+const GRID_SIZE = 40;
+const ARENA_SIZE = CELL_SIZE * GRID_SIZE;
+const SEED_AMOUNT = Math.floor(Math.random() * 30) + 30;
+const TURN_CHANCE = 0.15;
+const BRANCH_CHANCE = 0.1;
+const TERMINATION_CHANCE = 0.15;
 
-export const enum ArenaState {
-    OPEN = 0,
-    OVER = 1,
-    CLOSING = 2,
-    CLOSED = 3,
-}
-
-export default class ArenaEntity extends Entity implements TeamGroupEntity {
-    public arenaData: ArenaGroup = new ArenaGroup(this);
-    public teamData: TeamGroup = new TeamGroup(this);
-    public width: number;
-    public height: number;
-    public state: ArenaState = ArenaState.OPEN;
-    public shapeScoreRewardMultiplier: number = 1;
-    public allowBoss: boolean = true;
-    public boss: AbstractBoss | null = null;
-    public leader: TankBody | null = null;
-    protected shapes = new ShapeManager(this);
-    public ARENA_PADDING = 200;
-
-    // Lazy holder for ArenaCloser class
-    private static ArenaCloserClass: any = null;
-
-    public constructor(game: GameServer) {
-        super(game);
-
-        this.updateBounds(this.width = 22300, this.height = 22300);
-
-        this.arenaData.values.topY = -this.height / 2;
-        this.arenaData.values.bottomY = this.height / 2;
-        this.arenaData.values.leftX = -this.width / 2;
-        this.arenaData.values.rightX = this.width / 2;
-
-        this.arenaData.values.flags = ArenaFlags.gameReadyStart;
-        this.teamData.values.teamColor = Color.Neutral;
+/**
+ * Maze Gamemode Arena
+ * 
+ * Implementation details:
+ * Maze map generator by damocles <github.com/SpanksMcYeet>
+ *  - Added into codebase on December 3rd 2022
+ */
+export default class MazeArena extends ArenaEntity {
+    /** Stores all the "seed"s */
+    private SEEDS: VectorAbstract[] = [];
+    /** Stores all the "wall"s, contains cell based coords */
+    private WALLS: (VectorAbstract & {width: number, height: number})[] = [];
+    /** Rolled out matrix of the grid */
+    private MAZE: Uint8Array = new Uint8Array(GRID_SIZE * GRID_SIZE);
+    
+    public isInWall(x: number, y: number): boolean {
+        for (let wall of this.WALLS) {
+            const wallX = wall.x * CELL_SIZE - ARENA_SIZE / 2;
+            const wallY = wall.y * CELL_SIZE - ARENA_SIZE / 2;
+            const wallW = wall.width * CELL_SIZE;
+            const wallH = wall.height * CELL_SIZE;
+            if (
+                x >= wallX &&
+                x <= wallX + wallW &&
+                y >= wallY &&
+                y <= wallY + wallH
+            ) {
+                return true;
+            }
+        }
+        return false;
     }
 
-    /**
-     * Finds a spawnable location on the map.
-     */
+    public constructor(a: any) {
+        super(a);
+        this.updateBounds(ARENA_SIZE, ARENA_SIZE);
+        this.allowBoss = false;
+        this._buildMaze();
+    }
+
+    /**  Finds a spawnable location on the map. */
     public findSpawnLocation(): VectorAbstract {
         const pos = {
             x: ~~(Math.random() * this.width - this.width / 2),
@@ -89,7 +79,6 @@ export default class ArenaEntity extends Entity implements TeamGroupEntity {
         findSpawn: for (let i = 0; i < 100; ++i) {
             const entities = this.game.entities.collisionManager.retrieve(pos.x, pos.y, 1000, 1000);
 
-            // ✅ Avoid spawning inside wall structures
             if (this.isInWall(pos.x, pos.y)) {
                 pos.x = ~~(Math.random() * this.width - this.width / 2);
                 pos.y = ~~(Math.random() * this.height - this.height / 2);
@@ -111,153 +100,157 @@ export default class ArenaEntity extends Entity implements TeamGroupEntity {
 
         return pos;
     }
-
-    /**
-     * NEW: Checks if the spawn point is inside a wall.
-     * Lazy-load maze to fix circular import issues.
-     */
-    private isInWall(x: number, y: number): boolean {
-        try {
-            // Dynamic require to avoid import circular dependency
-            const mazeModule = require("../Gamemodes/Maze");
-            return mazeModule.maze?.contains?.(x, y) ?? false;
-        } catch {
-            return false;
-        }
+    /** Creates a maze wall from cell coords */
+    private _buildWallFromGridCoord(gridX: number, gridY: number, gridW: number, gridH: number) {
+        const scaledW = gridW * CELL_SIZE;
+        const scaledH = gridH * CELL_SIZE;
+        const scaledX = gridX * CELL_SIZE - ARENA_SIZE / 2 + (scaledW / 2);
+        const scaledY = gridY * CELL_SIZE - ARENA_SIZE / 2 + (scaledH / 2);
+        new MazeWall(this.game, scaledX, scaledY, scaledH, scaledW);
     }
-
-    protected updateScoreboard(scoreboardPlayers: TankBody[]) {
-        const scoreboardCount = this.arenaData.scoreboardAmount = (this.arenaData.values.flags & ArenaFlags.hiddenScores) ? 0 : Math.min(scoreboardPlayers.length, 10);
-
-        if (!scoreboardCount) {
-            if (this.arenaData.values.flags & ArenaFlags.showsLeaderArrow) {
-                this.arenaData.flags ^= ArenaFlags.showsLeaderArrow;
+    /** Allows for easier (x, y) based getting of maze cells */
+    private _get(x: number, y: number): number {
+        return this.MAZE[y * GRID_SIZE + x];
+    }
+    /** Allows for easier (x, y) based setting of maze cells */
+    private _set(x: number, y: number, value: number): number {
+        return this.MAZE[y * GRID_SIZE + x] = value;
+    }
+    /** Converts MAZE grid into an array of set and unset bits for ease of use */
+    private _mapValues(): [x: number, y: number, value: number][] {
+        const values: [x: number, y: number, value: number][] = Array(this.MAZE.length);
+        for (let i = 0; i < this.MAZE.length; ++i) values[i] = [i % GRID_SIZE, Math.floor(i / GRID_SIZE), this.MAZE[i]];
+        return values;
+    }
+    /** Builds the maze */
+    private _buildMaze() {
+        // Plant some seeds
+        for (let i = 0; i < 10000; i++) {
+            // Stop if we exceed our maximum seed amount
+            if (this.SEEDS.length >= SEED_AMOUNT) break;
+            // Attempt a seed planting
+            let seed: VectorAbstract = {
+                x: Math.floor((Math.random() * GRID_SIZE) - 1),
+                y: Math.floor((Math.random() * GRID_SIZE) - 1),
+            };
+            // Check if our seed is valid (is 3 GU away from another seed, and is not on the border)
+            if (this.SEEDS.some(a => (Math.abs(seed.x - a.x) <= 3 && Math.abs(seed.y - a.y) <= 3))) continue;
+            if (seed.x <= 0 || seed.y <= 0 || seed.x >= GRID_SIZE - 1 || seed.y >= GRID_SIZE - 1) continue;
+            // Push it to the pending seeds and set its grid to a wall cell
+            this.SEEDS.push(seed);
+            this._set(seed.x, seed.y, 1);
+        }
+        const direction: number[][] = [
+            [-1, 0], [1, 0], // left and right
+            [0, -1], [0, 1], // up and down
+        ];
+        // Let it grow!
+        for (let seed of this.SEEDS) {
+            // Select a direction we want to head in
+            let dir: number[] = direction[Math.floor(Math.random() * 4)];
+            let termination = 1;
+            // Now we can start to grow
+            while (termination >= TERMINATION_CHANCE) {
+                // Choose the next termination chance
+                termination = Math.random();
+                // Get the direction we're going in
+                let [x, y] = dir;
+                // Move forward in that direction, and set that grid to a wall cell
+                seed.x += x;
+                seed.y += y;
+                if (seed.x <= 0 || seed.y <= 0 || seed.x >= GRID_SIZE - 1 || seed.y >= GRID_SIZE - 1) break;
+                this._set(seed.x, seed.y, 1);
+                // Now lets see if we want to branch or turn
+                if (Math.random() <= BRANCH_CHANCE) {
+                    // If the seeds exceeds 75, then we're going to stop creating branches in order to avoid making a massive maze tumor(s)
+                    if (this.SEEDS.length > 75) continue;
+                    // Get which side we want the branch to be on (left or right if moving up or down, and up and down if moving left or right)
+                    let [ xx, yy ] = direction.filter(a => a.every((b, c) => b !== dir[c]))[Math.floor(Math.random() * 2)];
+                    // Create the seed
+                    let newSeed = {
+                        x: seed.x + xx,
+                        y: seed.y + yy,
+                    };
+                    // Push the seed and set its grid to a maze zone
+                    this.SEEDS.push(newSeed);
+                    this._set(seed.x, seed.y, 1);
+                } else if (Math.random() <= TURN_CHANCE) {
+                    // Get which side we want to turn to (left or right if moving up or down, and up and down if moving left or right)
+                    dir = direction.filter(a => a.every((b, c) => b !== dir[c]))[Math.floor(Math.random() * 2)];
+                }
             }
-
-            return;
         }
-
-        scoreboardPlayers.sort((p1, p2) => p2.scoreData.values.score - p1.scoreData.values.score);
-        this.leader = scoreboardPlayers[0];
-        
-        this.arenaData.flags |= ArenaFlags.showsLeaderArrow;
-        for (let i: ValidScoreboardIndex = 0; i < scoreboardCount; i = (i + 1) as ValidScoreboardIndex) {
-            const player = scoreboardPlayers[i];
-            
-            if (player.styleData.values.color === Color.Tank) this.arenaData.values.scoreboardColors[i] = Color.ScoreboardBar;
-            else this.arenaData.values.scoreboardColors[i] = player.styleData.values.color;
-            this.arenaData.values.scoreboardNames[i] = player.nameData.values.name;
-            this.arenaData.values.scoreboardScores[i] = player.scoreData.values.score;
-            this.arenaData.values.scoreboardTanks[i] = player['_currentTank'];
+        // Now lets attempt to add some singular walls around the arena
+        for (let i = 0; i < 10; i++) {
+            // Attempt to place it 
+            let seed = {
+                x: Math.floor((Math.random() * GRID_SIZE) - 1),
+                y: Math.floor((Math.random() * GRID_SIZE) - 1),
+            };
+            // Check if our sprinkle is valid (is 3 GU away from another wall, and is not on the border)
+            if (this._mapValues().some(([x, y, r]) => r === 1 && (Math.abs(seed.x - x) <= 3 && Math.abs(seed.y - y) <= 3))) continue;
+            if (seed.x <= 0 || seed.y <= 0 || seed.x >= GRID_SIZE - 1 || seed.y >= GRID_SIZE - 1) continue;
+            // Set its grid to a wall cell
+            this._set(seed.x, seed.y, 1);
         }
-    }
-
-    protected updateArenaState() {
-        if ((this.game.tick % scoreboardUpdateInterval) !== 0) return;
-
-        const players = this.getAlivePlayers();
-        this.updateScoreboard(players);
-        
-        if (players.length === 0 && this.state === ArenaState.CLOSING) {
-            this.state = ArenaState.CLOSED;
-
-            setTimeout(() => {
-                this.game.end();
-            }, 10000);
-            return;
-        }
-    }
-
-    public getAlivePlayers() {
-        const players: TankBody[] = [];
-        for (let id = 0; id <= this.game.entities.lastId; ++id) {
-            const entity = this.game.entities.inner[id];
-
-            if (
-                Entity.exists(entity) &&
-                entity instanceof TankBody &&
-                entity.cameraEntity instanceof ClientCamera &&
-                entity.cameraEntity.cameraData.values.player === entity
-            ) players.push(entity);
-        }
-        return players;
-    }
-
-    public getTeamPlayers(team: TeamEntity) {
-        const players = this.getAlivePlayers();
-        const teamPlayers: TankBody[] = [];
-        for (let i = 0; i < players.length; i++) {
-            const entity = players[i];
-
-            if (entity.relationsData.values.team === team) teamPlayers.push(entity);
-        }
-        return teamPlayers;
-    }
-
-    public updateBounds(arenaWidth: number, arenaHeight: number) {
-        this.width = arenaWidth;
-        this.height = arenaHeight;
-
-        this.arenaData.topY = -arenaHeight / 2;
-        this.arenaData.bottomY = arenaHeight / 2;
-        this.arenaData.leftX = -arenaWidth / 2;
-        this.arenaData.rightX = arenaWidth / 2;
-    }
-
-    public spawnPlayer(tank: TankBody, client: Client) {
-        const { x, y } = this.findSpawnLocation();
-
-        tank.positionData.values.x = x;
-        tank.positionData.values.y = y;
-    }
-
-    public async close() {
-        for (const client of this.game.clients) {
-            client.notify("Arena closed: No players can join", 0xFF0000, -1);
-        }
-
-        this.state = ArenaState.CLOSING;
-        this.arenaData.flags |= ArenaFlags.noJoining;
-
-        setTimeout(async () => {
-            if (!ArenaEntity.ArenaCloserClass) {
-                const module = await import("../Entity/Misc/ArenaCloser");
-                ArenaEntity.ArenaCloserClass = module.default;
+        // Now it's time to fill in the inaccessible pockets
+        // Start at the top left
+        let queue: number[][] = [[0, 0]];
+        this._set(0, 0, 2);
+        let checkedIndices = new Set([0]);
+        // Now lets cycle through the whole map
+        for (let i = 0; i < 3000 && queue.length > 0; i++) {
+            let next = queue.shift();
+            if (next == null) break;
+            let [x, y] = next;
+            // Get what the coordinates of what lies to the side of our cell
+            for (let [nx, ny] of [
+                [x - 1, y], // left
+                [x + 1, y], // right
+                [x, y - 1], // top
+                [x, y + 1], // bottom
+            ]) {
+                // If its a wall ignore it
+                if (this._get(nx, ny) !== 0) continue;
+                let i = ny * GRID_SIZE + nx;
+                // Check if we've already checked this cell
+                if (checkedIndices.has(i)) continue;
+                // Add it to the checked cells if we haven't already
+                checkedIndices.add(i);
+                // Add it to the next cycle to check
+                queue.push([nx, ny]);
+                // Set its grid to an accessible cell
+                this._set(nx, ny, 2);
             }
-
-            const acCount = Math.floor(Math.sqrt(this.width) / 10);
-            const radius = this.width * Math.SQRT1_2 + 500;
-            for (let i = 0; i < acCount; ++i) {
-                const ac = new ArenaEntity.ArenaCloserClass(this.game);
-
-                const angle = (i / acCount) * PI2;
-                ac.positionData.values.x = Math.cos(angle) * radius;
-                ac.positionData.values.y = Math.sin(angle) * radius;
-                ac.positionData.values.angle = angle + Math.PI;
+        }
+        // Cycle through all areas of the map
+        for (let x = 0; x < GRID_SIZE; x++) {
+            for (let y = 0; y < GRID_SIZE; y++) {
+                // If we're not a wall, ignore the cell and move on
+                if (this._get(x, y) === 2) continue;
+                // Define our properties
+                let chunk = { x, y, width: 0, height: 1 };
+                // Loop through adjacent cells and see how long we should be
+                while (this._get(x + chunk.width, y) !== 2) {
+                    this._set(x + chunk.width, y, 2);
+                    chunk.width++;
+                }
+                // Now lets see if we need to be t h i c c
+                outer: while (true) {
+                    // Check the row below to see if we can still make a box
+                    for (let i = 0; i < chunk.width; i++)
+                        // Stop if we can't
+                        if (this._get(x + i, y + chunk.height) === 2) break outer;
+                    // If we can, remove the line of cells from the map and increase the height of the block
+                    for (let i = 0; i < chunk.width; i++)
+                        this._set(x + i, y + chunk.height, 2);
+                    chunk.height++;
+                }
+                this.WALLS.push(chunk);
             }
-
-            saveToLog("Arena Closing", "Arena running at " + this.game.gamemode + " is now closing.", 0xFFE869);
-        }, 5000);
-    }
-
-    protected spawnBoss() {
-        const TBoss = [Guardian, Summoner, FallenOverlord, FallenBooster, Defender]
-            [~~(Math.random() * 5)];
-        
-        this.boss = new TBoss(this.game);
-    }
-
-    public tick(tick: number) {
-        this.shapes.tick();
-        this.updateArenaState();
-
-        if (this.leader && this.arenaData.values.flags & ArenaFlags.showsLeaderArrow) {
-            this.arenaData.leaderX = this.leader.positionData.values.x;
-            this.arenaData.leaderY = this.leader.positionData.values.y;
         }
-
-        if (this.allowBoss && this.game.tick >= 1 && (this.game.tick % bossSpawningInterval) === 0 && !this.boss) {
-            this.spawnBoss();
-        }
+        // Create the walls!
+        for (let {x, y, width, height} of this.WALLS)
+            this._buildWallFromGridCoord(x, y, width, height);
     }
 }

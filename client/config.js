@@ -23,7 +23,7 @@ const API_URL = `${window.location.href}api/`;
 const CHANGELOG = [
     "Updated 22/07/2025 by razor",
     "Currently the most accurate 2023 diep.io recreation.",
-    "Made traps travel FOREVER. Suggested by aaa and bbb",
+    "Fucking finally fixed spawning in walls.",
     "More updates coming daily."
 ];
 

@@ -36,7 +36,7 @@ import FallenOverlord from "../Entity/Boss/FallenOverlord";
 import FallenBooster from "../Entity/Boss/FallenBooster";
 import Defender from "../Entity/Boss/Defender";
 import { bossSpawningInterval, scoreboardUpdateInterval } from "../config";
-import { maze } from "../Gamemodes/Maze";
+import MazeArena from "../Gamemodes/Maze";
 
 export const enum ArenaState {
     OPEN = 0,
@@ -59,7 +59,7 @@ export default class ArenaEntity extends Entity implements TeamGroupEntity {
     public ARENA_PADDING = 200;
 
     // Lazy holder for ArenaCloser class
-    private static ArenaCloserClass: any = null;
+    protected static ArenaCloserClass: any = null;
 
     public constructor(game: GameServer) {
         super(game);
@@ -113,8 +113,8 @@ export default class ArenaEntity extends Entity implements TeamGroupEntity {
     /**
      * NEW: Checks if the spawn point is inside a wall.
      */
-    private isInWall(x: number, y: number): boolean {
-        return maze.contains?.(x, y) ?? false;
+    protected isInWall(x: number, y: number): boolean {
+        return this.isInWall(x, y) ?? false;
     }
 
     protected updateScoreboard(scoreboardPlayers: TankBody[]) {
