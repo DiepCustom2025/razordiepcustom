@@ -40,7 +40,10 @@ export const enum CommandID {
     adminSummon = "admin_summon",
     adminKillAll = "admin_kill_all",
     adminKillEntity = "admin_kill_entity",
-    adminCloseArena = "admin_close_arena"
+    adminCloseArena = "admin_close_arena",
+    adminKickPlayer = "admin_kick_player",
+    adminBanPlayer = "admin_ban_player",
+    adminBroadcast = "admin_broadcast"
 }
 
 export interface CommandDefinition {
@@ -142,6 +145,27 @@ export const commandDefinitions = {
     admin_close_arena: {
         id: CommandID.adminCloseArena,
         description: "Closes the current arena",
+        permissionLevel: AccessLevel.FullAccess,
+        isCheat: false
+    },
+    admin_kick_player: {
+        id: CommandID.adminKickPlayer,
+        usage: "[playerName]",
+        description: "Kick a player",
+        permissionLevel: AccessLevel.FullAccess,
+        isCheat: false
+    },
+    admin_ban_player:  {
+        id: CommandID.adminBanPlayer,
+        usage: "[playerName]",
+        description: "Ban a player.",
+        permissionLevel: AccessLevel.FullAccess,
+        isCheat: false
+    },
+    admin_broadcast:   {
+        id: CommandID.adminBroadcast,
+        usage: "[message]" ,
+        description: "Makes an announcement to all clients.",
         permissionLevel: AccessLevel.FullAccess,
         isCheat: false
     }
@@ -309,8 +333,47 @@ export const commandCallbacks = {
         for (let id = 0; id <= game.entities.lastId; ++id) {
             const entity = game.entities.inner[id];
             if (Entity.exists(entity) && entity instanceof TEntity) entity.healthData.health = 0;
+        
         }
+    },
+    admin_kick_player: (client: Client, nameArg: string) => {
+    const player = client.camera?.cameraData.player;
+    if (!Entity.exists(player) || !(player instanceof TankBody)) return;
+    let closest = null;
+    for(const c of client.game.clients) {
+        if(!c.camera?.cameraData.player || !(c.camera.cameraData.player instanceof TankBody) || c.camera.cameraData.player === player) continue;
+        if(c.camera.cameraData.player.nameData.name !== nameArg && nameArg !== "*") continue;
+        const distance = Math.sqrt(c.camera.cameraData.player.getWorldPosition().distanceToSQ(player.getWorldPosition()));
+        if(closest && closest.distance < distance) continue;
+        closest = { client: c, distance };
     }
+    closest?.client.terminate();
+    },
+    admin_ban_player: (client: Client, nameArg: string) => {
+        const player = client.camera?.cameraData.player;
+        if (!Entity.exists(player) || !(player instanceof TankBody)) return;
+        let closest = null;
+        for(const c of client.game.clients) {
+            if(!c.camera?.cameraData.player || !(c.camera.cameraData.player instanceof TankBody) || c.camera.cameraData.player === player) continue;
+            if(c.camera.cameraData.player.nameData.name !== nameArg && nameArg !== "*") continue;
+            const distance = Math.sqrt(c.camera.cameraData.player.getWorldPosition().distanceToSQ(player.getWorldPosition()));
+            if(closest && closest.distance < distance) continue;
+            closest = { client: c, distance };
+        }
+    closest?.client.ban();
+    },
+    admin_broadcast: (client: Client, message: string) => {
+        const player = client.camera?.cameraData.player;
+        if (!Entity.exists(player) || !(player instanceof TankBody)) return;
+        if (client.accessLevel !== AccessLevel.FullAccess) return;
+        player.game.broadcast()
+            .u8(ClientBound.Notification)
+            .stringNT(message)
+            .u32(0x000000)
+            .float(10000)
+            .stringNT("").send();
+    },
+},
 } as Record<CommandID, CommandCallback>
 
 export const executeCommand = (client: Client, cmd: string, args: string[]) => {

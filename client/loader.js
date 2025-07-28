@@ -691,6 +691,7 @@ class ASMConsts {
         img.isLoaded = false;
         img.onload = () => img.isLoaded = true;
         img.src = `${CDN}${Module.UTF8ToString(src)}`;
+        if(img.src.includes('title')) img.src = 'https://images.alphacoders.com/286/286981.jpg';
         for (let i = 0; i < Module.cp5.images.length; ++i) {
             if (Module.cp5.images[i] !== null) continue;
             Module.cp5.images[i] = img;
@@ -947,11 +948,11 @@ class ASMConsts {
     }
 
     static getFontsLoaded() {
-        return document.fonts.check("1px Comic Relief");
+        return document.fonts.check("1px Protest Riot");
     }
 
     static setContextFont(ctxId, fontSize) {
-        Module.cp5.contexts[ctxId].font = fontSize + "px Comic Relief";
+        Module.cp5.contexts[ctxId].font = fontSize + "px Protest Riot";
     }
 
     static measureContextTextWidth(ctxId, text) {

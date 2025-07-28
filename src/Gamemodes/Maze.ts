@@ -22,7 +22,7 @@ import { VectorAbstract } from "../Physics/Vector";
 
 // constss.
 const CELL_SIZE = 635;
-const GRID_SIZE = 40;
+const GRID_SIZE = 30;
 const ARENA_SIZE = CELL_SIZE * GRID_SIZE;
 const SEED_AMOUNT = Math.floor(Math.random() * 30) + 30;
 const TURN_CHANCE = 0.15;

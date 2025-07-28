@@ -21,9 +21,12 @@ const CDN = "https://static.diep.io/";
 const API_URL = `${window.location.href}api/`;
 
 const CHANGELOG = [
-    "Updated 22/07/2025 by razor",
+    "Updated 29/07/2025 by razor.",
+    "",
     "Currently the most accurate 2023 diep.io recreation.",
-    "Fucking finally fixed spawning in walls.",
+    "",
+    "New background + added commands.",
+    "",
     "More updates coming daily."
 ];
 
