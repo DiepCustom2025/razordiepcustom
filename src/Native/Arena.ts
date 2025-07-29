@@ -19,7 +19,7 @@
 import GameServer from "../Game";
 import ShapeManager from "../Entity/Shape/Manager";
 import TankBody from "../Entity/Tank/TankBody";
-// Removed direct import of ArenaCloser to fix circular dependency
+import ArenaCloser from "../Entity/Misc/ArenaCloser";
 import ClientCamera from "./Camera";
 
 import { VectorAbstract } from "../Physics/Vector";
@@ -36,30 +36,49 @@ import FallenOverlord from "../Entity/Boss/FallenOverlord";
 import FallenBooster from "../Entity/Boss/FallenBooster";
 import Defender from "../Entity/Boss/Defender";
 import { bossSpawningInterval, scoreboardUpdateInterval } from "../config";
-import MazeArena from "../Gamemodes/Maze";
 
 export const enum ArenaState {
+    /** Alive, open */
     OPEN = 0,
+    /** Game ended - someone won */
     OVER = 1,
+    /** Lobby starts to close */
     CLOSING = 2,
+    /** Lobby closed */
     CLOSED = 3,
 }
 
+/**
+ * The Arena Entity, sent to the client and also used for internal calculations.
+ */
 export default class ArenaEntity extends Entity implements TeamGroupEntity {
+    /** Always existant arena field group. Present in all arenas. */
     public arenaData: ArenaGroup = new ArenaGroup(this);
+    /** Always existant team field group. Present in all (or maybe just ffa) arenas. */
     public teamData: TeamGroup = new TeamGroup(this);
+    /** Cached width of the arena. Not sent to the client directly. */
     public width: number;
+    /** Cached height of the arena. Not sent to the client directly. */
     public height: number;
+    /** Whether or not the arena allows new players to spawn. */
     public state: ArenaState = ArenaState.OPEN;
-    public shapeScoreRewardMultiplier: number = 1;
-    public allowBoss: boolean = true;
-    public boss: AbstractBoss | null = null;
-    public leader: TankBody | null = null;
-    protected shapes = new ShapeManager(this);
-    public ARENA_PADDING = 200;
 
-    // Lazy holder for ArenaCloser class
-    protected static ArenaCloserClass: any = null;
+    public shapeScoreRewardMultiplier: number = 1;
+
+    /** Enable or disable natural boss spawning */
+    public allowBoss: boolean = true;
+
+    /** The current boss spawned into the game */
+    public boss: AbstractBoss | null = null;
+
+    /** Scoreboard leader */
+    public leader: TankBody | null = null;
+
+    /** Controller of all shapes in the arena. */
+    protected shapes = new ShapeManager(this);
+
+    /** Padding between arena size and maximum movement border. */
+    public ARENA_PADDING = 200;
 
     public constructor(game: GameServer) {
         super(game);
@@ -78,28 +97,21 @@ export default class ArenaEntity extends Entity implements TeamGroupEntity {
     /**
      * Finds a spawnable location on the map.
      */
-    public findSpawnLocation(): VectorAbstract {
+     public findSpawnLocation(): VectorAbstract {
         const pos = {
             x: ~~(Math.random() * this.width - this.width / 2),
             y: ~~(Math.random() * this.height - this.height / 2),
         }
 
-        findSpawn: for (let i = 0; i < 100; ++i) {
+        findSpawn: for (let i = 0; i < 20; ++i) {
             const entities = this.game.entities.collisionManager.retrieve(pos.x, pos.y, 1000, 1000);
 
-            // ✅ Avoid spawning inside wall structures
-            if (this.isInWall(pos.x, pos.y)) {
-                pos.x = ~~(Math.random() * this.width - this.width / 2);
-                pos.y = ~~(Math.random() * this.height - this.height / 2);
-                continue findSpawn;
-            }
-
+            // Only spawn < 1000 units away from player, unless we can't find a place to spawn
             for (let len = entities.length; --len >= 0;) {
-                if (entities[len] instanceof TankBody &&
-                    (entities[len].positionData.values.x - pos.x) ** 2 +
-                    (entities[len].positionData.values.y - pos.y) ** 2 < 1_000_000) {
+                if (entities[len] instanceof TankBody && (entities[len].positionData.values.x - pos.x) ** 2 + (entities[len].positionData.values.y - pos.y) ** 2 < 1_000_000) { // 1000^2
                     pos.x = ~~(Math.random() * this.width - this.width / 2);
                     pos.y = ~~(Math.random() * this.height - this.height / 2);
+
                     continue findSpawn;
                 }
             }
@@ -111,12 +123,8 @@ export default class ArenaEntity extends Entity implements TeamGroupEntity {
     }
 
     /**
-     * NEW: Checks if the spawn point is inside a wall.
+     * Updates the scoreboard / leaderboard arena fields.
      */
-    protected isInWall(x: number, y: number): boolean {
-        return this.isInWall(x, y) ?? false;
-    }
-
     protected updateScoreboard(scoreboardPlayers: TankBody[]) {
         const scoreboardCount = this.arenaData.scoreboardAmount = (this.arenaData.values.flags & ArenaFlags.hiddenScores) ? 0 : Math.min(scoreboardPlayers.length, 10);
 
@@ -139,19 +147,23 @@ export default class ArenaEntity extends Entity implements TeamGroupEntity {
             else this.arenaData.values.scoreboardColors[i] = player.styleData.values.color;
             this.arenaData.values.scoreboardNames[i] = player.nameData.values.name;
             this.arenaData.values.scoreboardScores[i] = player.scoreData.values.score;
+            // _currentTank only since ts ignore
             this.arenaData.values.scoreboardTanks[i] = player['_currentTank'];
         }
     }
 
+    /** Updates scoreboard and finalizes CLOSING of arena */
     protected updateArenaState() {
         if ((this.game.tick % scoreboardUpdateInterval) !== 0) return;
 
         const players = this.getAlivePlayers();
+        // Sorts them too DONT FORGET
         this.updateScoreboard(players);
         
         if (players.length === 0 && this.state === ArenaState.CLOSING) {
             this.state = ArenaState.CLOSED;
 
+            // This is a one-time, end of life event, so we just use setTimeout
             setTimeout(() => {
                 this.game.end();
             }, 10000);
@@ -185,6 +197,9 @@ export default class ArenaEntity extends Entity implements TeamGroupEntity {
         return teamPlayers;
     }
 
+    /**
+     * Updates the size of the map. It should be the only way to modify arena size.
+     */
     public updateBounds(arenaWidth: number, arenaHeight: number) {
         this.width = arenaWidth;
         this.height = arenaHeight;
@@ -195,6 +210,9 @@ export default class ArenaEntity extends Entity implements TeamGroupEntity {
         this.arenaData.rightX = arenaWidth / 2;
     }
 
+    /**
+     * Allows the arena to decide how players are spawned into the game.
+     */
     public spawnPlayer(tank: TankBody, client: Client) {
         const { x, y } = this.findSpawnLocation();
 
@@ -202,7 +220,10 @@ export default class ArenaEntity extends Entity implements TeamGroupEntity {
         tank.positionData.values.y = y;
     }
 
-    public async close() {
+    /**
+     * Closes the arena.
+     */
+    public close() {
         for (const client of this.game.clients) {
             client.notify("Arena closed: No players can join", 0xFF0000, -1);
         }
@@ -210,16 +231,12 @@ export default class ArenaEntity extends Entity implements TeamGroupEntity {
         this.state = ArenaState.CLOSING;
         this.arenaData.flags |= ArenaFlags.noJoining;
 
-        setTimeout(async () => {
-            if (!ArenaEntity.ArenaCloserClass) {
-                const module = await import("../Entity/Misc/ArenaCloser");
-                ArenaEntity.ArenaCloserClass = module.default;
-            }
-
+        // This is a one-time, end of life event, so we just use setTimeout
+        setTimeout(() => {
             const acCount = Math.floor(Math.sqrt(this.width) / 10);
             const radius = this.width * Math.SQRT1_2 + 500;
             for (let i = 0; i < acCount; ++i) {
-                const ac = new ArenaEntity.ArenaCloserClass(this.game);
+                const ac = new ArenaCloser(this.game);
 
                 const angle = (i / acCount) * PI2;
                 ac.positionData.values.x = Math.cos(angle) * radius;
@@ -227,10 +244,11 @@ export default class ArenaEntity extends Entity implements TeamGroupEntity {
                 ac.positionData.values.angle = angle + Math.PI;
             }
 
-            saveToLog("Arena Closing", "Arena running at " + this.game.gamemode + " is now closing.", 0xFFE869);
+            saveToLog("Arena Closing", "Arena running at `" + this.game.gamemode + "` is now closing.", 0xFFE869);
         }, 5000);
     }
 
+    /** Spawns the boss into the arena */
     protected spawnBoss() {
         const TBoss = [Guardian, Summoner, FallenOverlord, FallenBooster, Defender]
             [~~(Math.random() * 5)];

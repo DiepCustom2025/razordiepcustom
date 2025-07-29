@@ -130,6 +130,10 @@ app.get("/*", (res, req) => {
                 file = config.clientLocation + "/config.js";
                 contentType = "application/javascript";
                 break;
+            case "/style.js":
+                file = config.clientLocation + "/style.js";
+                contentType = "application/javascript";
+                break;
         }
 
         res.writeHeader("Content-Type", contentType + "; charset=utf-8");

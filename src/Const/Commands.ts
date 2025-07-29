@@ -22,7 +22,7 @@ import Bullet from "../Entity/Tank/Projectile/Bullet";
 import TankBody from "../Entity/Tank/TankBody";
 import { Entity, EntityStateFlags } from "../Native/Entity";
 import { saveToVLog } from "../util";
-import { Stat, StatCount, StyleFlags, Tank } from "./Enums";
+import { Stat, StatCount, StyleFlags, Tank, ClientBound } from "./Enums";
 import { getTankByName } from "./TankDefinitions"
 
 const RELATIVE_POS_REGEX = new RegExp(/~(-?\d+)?/);
@@ -372,8 +372,8 @@ export const commandCallbacks = {
             .u32(0x000000)
             .float(10000)
             .stringNT("").send();
-    },
-},
+    }
+
 } as Record<CommandID, CommandCallback>
 
 export const executeCommand = (client: Client, cmd: string, args: string[]) => {
