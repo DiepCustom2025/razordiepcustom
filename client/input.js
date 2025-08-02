@@ -72,6 +72,16 @@ window.setupInput = () => {
 
     window.onkeydown = e => {
         window.input.flushInputHooks();
+        if (e.keyCode == 13) {
+            const textInput = document.getElementById("textInput")
+            const textInputContainer = document.getElementById("textInputContainer")
+            console.log(textInput.value)
+            if (textInputContainer.style.display === "block" && textInput.value === "") {
+                console.log("prevented")
+                e.preventDefault();
+                return false;
+            }
+        }
         if(e.keyCode >= 112 && e.keyCode <= 130 && e.keyCode !== 113) return;
         window.input.keyDown(e.keyCode);
         if(e.keyCode === 9 || !isTyping && e.ctrlKey && e.metaKey) e.preventDefault();

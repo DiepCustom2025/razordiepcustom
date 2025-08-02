@@ -21,11 +21,11 @@ const CDN = "https://static.diep.io/";
 const API_URL = `${window.location.href}api/`;
 
 const CHANGELOG = [
-    "Updated 29/07/2025 by razor.",
+    "Updated 01/08/2025 by razor.",
     "",
     "Currently the most accurate 2023 diep.io recreation.",
     "",
-    "New background + added commands.",
+    "Nerfed Traps + Removed No-Names.",
     "",
     "More updates coming daily."
 ];
