@@ -21,11 +21,11 @@ const CDN = "https://static.diep.io/";
 const API_URL = `${window.location.href}api/`;
 
 const CHANGELOG = [
-    "Updated 01/08/2025 by razor.",
+    "Updated 03/08/2025 by razor.",
     "",
     "Currently the most accurate 2023 diep.io recreation.",
     "",
-    "Nerfed Traps + Removed No-Names.",
+    "Added experimental Bedwars gamemode.",
     "",
     "More updates coming daily."
 ];

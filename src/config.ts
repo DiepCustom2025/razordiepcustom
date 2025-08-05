@@ -29,7 +29,7 @@ export const mspt: number = 40;
 export const tps: number = 1000 / mspt;
 
 /** Max connections per ip. Infinity = no limit */
-export const connectionsPerIp: number = Infinity;
+export const connectionsPerIp: number = 5;
 
 /** Max incoming packet size (HARD LIMIT), not the max read / write size */
 export const wssMaxMessageSize: number = 4096; // 4 kb

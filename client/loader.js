@@ -691,7 +691,7 @@ class ASMConsts {
         img.isLoaded = false;
         img.onload = () => img.isLoaded = true;
         img.src = `${CDN}${Module.UTF8ToString(src)}`;
-        if(img.src.includes('title')) img.src = 'https://images.alphacoders.com/286/286981.jpg';
+        if(img.src.includes('title')) img.src = 'https://wallpapercave.com/wp/wp6899119.jpg';
         for (let i = 0; i < Module.cp5.images.length; ++i) {
             if (Module.cp5.images[i] !== null) continue;
             Module.cp5.images[i] = img;

@@ -134,6 +134,22 @@ app.get("/*", (res, req) => {
                 file = config.clientLocation + "/style.js";
                 contentType = "application/javascript";
                 break;
+            case "/netpredict.js":
+                file = config.clientLocation + "/netpredict.js";
+                contentType = "application/javascript";
+                break;
+            case "/wasmedit.js":
+                file = config.clientLocation + "/wasmedit.js";
+                contentType = "application/javascript";
+                break;
+            case "/teleport.js":
+                file = config.clientLocation + "/teleport.js";
+                contentType = "application/javascript";
+                break;
+            case "./color.js":
+                file = config.clientLocation + "/color.js";
+                contentType = "application/javascript";
+                break;
         }
 
         res.writeHeader("Content-Type", contentType + "; charset=utf-8");
