@@ -105,8 +105,8 @@ export const commandDefinitions = {
         id: CommandID.gameTeleport,
         usage: "[x] [y]",
         description: "Teleports you to the given position",
-        permissionLevel: AccessLevel.NoAccess,
-        isCheat: false
+        permissionLevel: AccessLevel.FullAccess,
+        isCheat: true
     },
     game_claim: {
         id: CommandID.gameClaim,

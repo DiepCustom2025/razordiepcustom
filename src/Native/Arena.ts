@@ -94,33 +94,44 @@ export default class ArenaEntity extends Entity implements TeamGroupEntity {
         this.teamData.values.teamColor = Color.Neutral;
     }
 
-    /**
-     * Finds a spawnable location on the map.
-     */
-     public findSpawnLocation(): VectorAbstract {
-        const pos = {
-            x: ~~(Math.random() * this.width - this.width / 2),
-            y: ~~(Math.random() * this.height - this.height / 2),
-        }
+/**
+ * Finds a spawnable location on the map.
+ */
+public findSpawnLocation(): VectorAbstract {
+    // Spawn range limits
+    const minX = -1000;
+    const maxX = 1000;
+    const minY = -1000;
+    const maxY = 1000;
 
-        findSpawn: for (let i = 0; i < 20; ++i) {
-            const entities = this.game.entities.collisionManager.retrieve(pos.x, pos.y, 1000, 1000);
+    const pos = {
+        x: ~~(Math.random() * (maxX - minX) + minX),
+        y: ~~(Math.random() * (maxY - minY) + minY),
+    };
 
-            // Only spawn < 1000 units away from player, unless we can't find a place to spawn
-            for (let len = entities.length; --len >= 0;) {
-                if (entities[len] instanceof TankBody && (entities[len].positionData.values.x - pos.x) ** 2 + (entities[len].positionData.values.y - pos.y) ** 2 < 1_000_000) { // 1000^2
-                    pos.x = ~~(Math.random() * this.width - this.width / 2);
-                    pos.y = ~~(Math.random() * this.height - this.height / 2);
+    findSpawn: for (let i = 0; i < 20; ++i) {
+        const entities = this.game.entities.collisionManager.retrieve(pos.x, pos.y, 1000, 1000);
 
-                    continue findSpawn;
-                }
+        // Only spawn < 1000 units away from player, unless we can't find a place to spawn
+        for (let len = entities.length; --len >= 0;) {
+            if (
+                entities[len] instanceof TankBody &&
+                (entities[len].positionData.values.x - pos.x) ** 2 +
+                (entities[len].positionData.values.y - pos.y) ** 2 < 1_000_000 // 1000^2
+            ) {
+                // Pick new random spot inside the rectangle
+                pos.x = ~~(Math.random() * (maxX - minX) + minX);
+                pos.y = ~~(Math.random() * (maxY - minY) + minY);
+
+                continue findSpawn;
             }
-
-            break;
         }
 
-        return pos;
+        break;
     }
+
+    return pos;
+}
 
     /**
      * Updates the scoreboard / leaderboard arena fields.

@@ -142,14 +142,6 @@ app.get("/*", (res, req) => {
                 file = config.clientLocation + "/wasmedit.js";
                 contentType = "application/javascript";
                 break;
-            case "/teleport.js":
-                file = config.clientLocation + "/teleport.js";
-                contentType = "application/javascript";
-                break;
-            case "./color.js":
-                file = config.clientLocation + "/color.js";
-                contentType = "application/javascript";
-                break;
         }
 
         res.writeHeader("Content-Type", contentType + "; charset=utf-8");
