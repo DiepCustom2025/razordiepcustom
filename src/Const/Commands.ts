@@ -247,10 +247,12 @@ export const commandCallbacks = {
             return;
         }
     },
-    game_godmode: (client: Client, activeArg?: string) => {
-        const player = client.camera?.cameraData.player;
-        if (!Entity.exists(player) || !(player instanceof TankBody)) return;
+    game_godmode: (client: Client, nameArg?: string, activeArg?: string) => {
+    const localPlayer = client.camera?.cameraData.player;
+    if (!Entity.exists(localPlayer) || !(localPlayer instanceof TankBody)) return;
 
+    // Helper to apply invulnerability based on activeArg
+    const applyGodmode = (player: TankBody) => {
         switch (activeArg) {
             case "on":
                 player.setInvulnerability(true);
@@ -262,10 +264,48 @@ export const commandCallbacks = {
                 player.setInvulnerability(!player.isInvulnerable);
                 break;
         }
+    };
 
-        const godmodeState = player.isInvulnerable ? "ON" : "OFF";
-        return `God mode: ${godmodeState}`;
-    },
+    // If no name provided, toggle local player
+    if (!nameArg) {
+        applyGodmode(localPlayer);
+        const state = localPlayer.isInvulnerable ? "ON" : "OFF";
+        return `God mode for ${localPlayer.nameData.name}: ${state}`;
+    }
+
+    // If "*" is provided, toggle all players
+    if (nameArg === "*") {
+        let count = 0;
+        for (const c of client.game.clients) {
+            const p = c.camera?.cameraData.player;
+            if (!Entity.exists(p) || !(p instanceof TankBody)) continue;
+            applyGodmode(p);
+            count++;
+        }
+        return `God mode toggled for ALL players (${count} total).`;
+    }
+
+    // Otherwise, find closest matching player by nameArg using kick logic
+    let closest = null;
+    for (const c of client.game.clients) {
+        const p = c.camera?.cameraData.player;
+        if (!Entity.exists(p) || !(p instanceof TankBody) || p === localPlayer) continue;
+        if (p.nameData.name !== nameArg) continue;
+
+        const dist = Math.sqrt(p.getWorldPosition().distanceToSQ(localPlayer.getWorldPosition()));
+        if (closest && closest.distance < dist) continue;
+
+        closest = { player: p, distance: dist };
+    }
+
+    if (closest) {
+        applyGodmode(closest.player);
+        const state = closest.player.isInvulnerable ? "ON" : "OFF";
+        return `God mode for ${closest.player.nameData.name}: ${state}`;
+    }
+
+    return `Error: Player '${nameArg}' not found.`;
+},
     admin_summon: (client: Client, entityArg: string, countArg?: string, xArg?: string, yArg?: string) => {
         const count = countArg ? parseInt(countArg) : 1;
         let x = parseInt(xArg || "0", 10);
